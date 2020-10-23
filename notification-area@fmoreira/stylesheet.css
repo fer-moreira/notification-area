@@ -1,0 +1,41 @@
+/* Add your custom extension styling here */
+.notification-container {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.notification-container:has_notif {
+  background-color: transparent;
+}
+
+.notification-container:empty_notif {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.notification-box:first-child {
+  margin-top: 10px;
+}
+.notification-box:last-child {
+  margin-bottom: 10px;
+}
+
+.notification-box {
+  background-color: rgba(0, 0, 0, 0.808);
+  margin: 4px 10px;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.514);
+}
+
+.notification-box:hover {
+  background-color: rgb(219, 219, 219);
+}
+
+.notification-box:active {
+  background-color: rgb(210, 210, 210);
+}
+
+.notification-indicator-box .notes-icon-indicator {
+  background-color: white;
+  color: black;
+  border-radius: 100px;
+  padding: 0px 5px;
+}
