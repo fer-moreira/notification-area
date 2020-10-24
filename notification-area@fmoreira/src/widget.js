@@ -6,7 +6,11 @@ const GLib = imports.gi.GLib;
 const Shell = imports.gi.Shell;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
-var NotificationBox = GObject.registerClass({},
+var NotificationBox = GObject.registerClass({
+    Signals: {
+        'banner_click': {},
+    }
+},
     class NotificationBox extends St.Bin {
         _init (width, height, data) {
             this.boxWidth = width;
@@ -23,7 +27,9 @@ var NotificationBox = GObject.registerClass({},
             });
 
             
-            this.payload.hasApp && widget.add_actor(this._iconContainer());
+            widget.add_actor(this._iconContainer());
+            widget.add_actor(this._descriptionContainer());
+            widget.add_actor(this._closeContainer());
 
             super._init({
                 child: widget,
@@ -34,26 +40,65 @@ var NotificationBox = GObject.registerClass({},
                 can_focus: true,
                 track_hover: true
             });
+
+            this.connect("button-press-event", () => {
+                this.payload.hasApp && this.payload.app.object.activate();
+            });
         }
 
         _iconContainer () {
             let _bin = new St.Bin({
-                style_class : "notification-icon-container",
+                style_class : "notification_box__icon",
                 can_focus : false,
                 track_hover : false,
                 reactive: false,
                 height : this.boxHeight,
                 width: this._value_percentage(this.boxWidth, 25)
             });
-
-            _bin.add_actor(this.payload.iconObj);
+            
+            
+            if (this.payload.hasApp) {
+                _bin.add_actor(this.payload.icon);
+            } else {
+                let nullIcon = new St.Icon({
+                    icon_name: "dialog-information-symbolic",
+                    style_class : "notification_box__icon--icon"
+                });
+                _bin.add_actor(nullIcon);
+            }
 
             return _bin;
         }
 
         _descriptionContainer () {
+            let layout = new Clutter.GridLayout({
+                orientation: Clutter.Orientation.VERTICAL
+            });
+
+            let widget = new St.Widget({
+                name: "notification_box__widget",
+                layout_manager: layout
+            });
+
+            let default_color = new Clutter.Color({red:255, green: 255, blue: 255,alpha: 255});
+
+            let _desc = new Clutter.Text({
+                text: this.payload.content.description,
+                line_wrap: true,
+                color: default_color,
+                use_markup: this.payload.content.isMarkup
+            });
+
+            widget.add_actor(new St.Label({
+                style_class: "notification_box__label--title",
+                text: this.payload.content.title
+            }));
+            widget.add_actor(_desc);
+            
+
             let container = new St.Bin({
-                style_class : "notification-description-container",
+                child: widget,
+                style_class : "notification_box__content",
                 can_focus : false,
                 track_hover : false,
                 reactive: false,
@@ -86,21 +131,9 @@ var NotificationBox = GObject.registerClass({},
             }
             
         }
-
-        _openApp (app) {
-            Shell.AppSystem.get_default().lookup_app(app).activate();
-        }
     }
 );
 
-const getMethods = (obj) => {
-    let properties = new Set()
-    let currentObj = obj
-    do {
-      Object.getOwnPropertyNames(currentObj).map(item => properties.add(item))
-    } while ((currentObj = Object.getPrototypeOf(currentObj)))
-    return [...properties.keys()].filter(item => typeof obj[item] === 'function')
-  }
 
 var NotificationsWidget = GObject.registerClass({},
 class NotificationsWidget extends St.Widget {
@@ -109,16 +142,12 @@ class NotificationsWidget extends St.Widget {
         this.boxHeight = height;
 
         this.notificationsMap = new Map();
-        this._tempBoxData = {};
-
 
         this._initWidget();
         this._setListeners();
     }
 
     _initWidget () {
-        this._rtl = (Clutter.get_default_text_direction() == Clutter.TextDirection.RTL);
-
         let layout = new Clutter.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL
         });
@@ -133,57 +162,44 @@ class NotificationsWidget extends St.Widget {
         this.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
     }
 
-    // Function logic
-    // if some push notification is added to tray
-    // catch, create a payload, add the box to widget
-    // else
-    // remove the  box from widget usind its pid
     _setListeners () {
         Main.messageTray.connect('source-added', (t, source) => {
+            source.connect("notification-added", (postSource) => {
+                try {
+                    let payload = {
+                        pid: source.pid,
+                        icon: source.createIcon(source.SOURCE_ICON_SIZE),
+                        datetime: postSource.notifications[0].datetime.format_iso8601(),
+                        content: {
+                            title: postSource.notifications[0].title,
+                            description: postSource.notifications[0].bannerBodyText,
+                            isMarkup: postSource.notifications[0].bannerBodyMarkup,
+                        },
+                        hasApp: (source.app != null) ? true : false
+                    }
 
-            log("DEBUG:");
-            log(source.notifications.length);
+                    if (source.app) {
+                        payload.app = {
+                            title: source.app.title,
+                            object: source.app
+                        }
+                    }
 
-            try {
-                this._tempBoxData.source = source;
-                this._tempBoxData.pid = source.pid;
-                this._tempBoxData.title = source.title;
-                this._tempBoxData.hasApp = (source.app != null) ? true : false;
-                this._tempBoxData.iconObj = source.createIcon(source.SOURCE_ICON_SIZE);
-                
-                if (source.app) {
-                    this._tempBoxData.app = source.app;
-                    this._tempBoxData.app_id = source.app.id;
-                } else {
-                    log(getMethods(source));
+                    let box = new NotificationBox(this.boxWidth, this.boxHeight, payload);
+                    this.notificationsMap.set(source, box);
+                    this.add_actor(box);
+                } catch (error) {
+                    log("cannot able to add box to notification area, reason: "+error);
                 }
-
-            } catch (error) {
-                log("Error creating boxData: " + error);
-            }
-
-            try {
-                let box = new NotificationBox(this.boxWidth, this.boxHeight, this._tempBoxData);
-                this.notificationsMap.set(source.pid, box);
-                this.add_actor(box);
-            } catch (error) {
-                log("Error creating and adding NotificationBox in '" + this + "' reason: " + error);                
-            }
-
+            });
         });
 
         Main.messageTray.connect('source-removed', (t, source) => {
             try {
-                this.notificationsMap.has(source.pid) && this.remove_actor(this.notificationsMap.get(source.pid));
-
-                // HACK 
-                // if the message tray is empty and have notification in area
-                if (t.getSources().length == 0) this.destroy_all_children();
-
+                this.notificationsMap.has(source) && this.remove_actor(this.notificationsMap.get(source));
             } catch (error) {
                 log("Error removing the notification from widget: " + error);                
             }
         });
     }
 });
-
