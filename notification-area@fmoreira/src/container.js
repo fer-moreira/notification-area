@@ -105,12 +105,7 @@ var NotificationArea = GObject.registerClass({
 
     // SIMPLE TOGGLE FUNCTION TO SHOW AND HIDE NOTIFICATION BIN
     _toggleNotificationArea () {
-        if (Main.messageTray.getSources().length <= 0) {
-            this.isOpen = false;
-        } else {
-            this.isOpen = !this.isOpen;
-        }
-        
+        this.isOpen = !this.isOpen;
         (this.isOpen) ? this._showNotificationArea() : this._hideNotificationArea();
     }
 
