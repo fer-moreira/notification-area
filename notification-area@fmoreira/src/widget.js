@@ -175,6 +175,8 @@ class NotificationsWidget extends St.Widget {
 
         this._initWidget();
         this._setListeners();
+
+        this.connect("destroy", () => { this._onDestroy(); });
     }
 
     _initWidget () {
@@ -243,6 +245,12 @@ class NotificationsWidget extends St.Widget {
             } catch (error) {
                 log("Error removing the notification from widget: " + error);                
             }
+        });
+    }
+
+    _onDestroy () {
+        [...this.notificationsMap.values()].map((item) => {
+            item.destroy();
         });
     }
 });

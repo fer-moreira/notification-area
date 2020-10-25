@@ -82,7 +82,6 @@ var NotificationArea = GObject.registerClass({
             this._widget.set_width(this.wSize);
 
             this.isOpen ? this._showNotificationArea() : this._hideNotificationArea();
-
         });
 
         this._settings.connect("changed::hide-duration", (sett,key) => {
@@ -95,7 +94,7 @@ var NotificationArea = GObject.registerClass({
     }
 
     _onDestroy () {
-        // REMOVE BIN FROM GNOME DESKTOP FIRST THEN DISABLE
+        this._settings.disconnect(this);
         Main.layoutManager.removeChrome(this);
     }
     

@@ -45,6 +45,13 @@ var NotificationIndicator = GObject.registerClass({
         this.add_child(this.box);
 
         Main.panel.addToStatusArea('Notification Indicator', this, 999);
+
+        this.connect("destroy", () => { this._onDestroy(); });
+    }
+
+    _onDestroy () {
+        Main.panel.remove_child(this);
+        Main.messageTray.disconnect(this);
     }
 
     _refreshLabelIcon (t) {
