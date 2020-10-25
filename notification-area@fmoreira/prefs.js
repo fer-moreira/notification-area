@@ -31,7 +31,8 @@ const Page = new GObject.Class({
         this.title = new Gtk.Label({
             label: "<b>" + title + "</b>",
             use_markup: true,
-            xalign: 0
+            xalign: 0,
+            justify: Gtk.Justification.CENTER
         });
     },
 
@@ -183,8 +184,84 @@ var AboutPage = new Lang.Class({
     _init: function (settings) {
         this.parent(_("About"));
         this.settings = settings;
+
+        let releaseVersion = Me.metadata["version"];
+        let projectName = Me.metadata["name"];
+        let projectDescription = Me.metadata["description"];
+        let projectUrl = Me.metadata["url"];
+        let logoPath = Me.path + "/media/logo.svg";
+        let [imageWidth, imageHeight] = [128, 128];
+        let pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(logoPath, imageWidth, imageHeight);
+        let menuImage = new Gtk.Image({
+            pixbuf: pixbuf
+        });
+        let menuImageBox = new Gtk.VBox({
+            margin_top: 5,
+            margin_bottom: 5,
+            expand: false
+        });
+        menuImageBox.add(menuImage);
+
+        // Create the info box
+        let menuInfoBox = new Gtk.VBox({
+            margin_top: 5,
+            margin_bottom: 5,
+            expand: false
+        });
+        let menuLabel = new Gtk.Label({
+            label: "<b>" + projectName + "</b>",
+            use_markup: true,
+            expand: false
+        });
+        let versionLabel = new Gtk.Label({
+            label: "<b>" + _("Version: ") + releaseVersion + "</b>",
+            use_markup: true,
+            expand: false
+        });
+        let projectDescriptionLabel = new Gtk.Label({
+            label: "\n" + _(projectDescription),
+            expand: false,
+            justify: Gtk.Justification.CENTER
+        });
+        let helpLabel = new Gtk.Label({
+            label: "\n" + _("If something breaks, don\'t hesitate to leave a comment at "),
+            expand: false
+        });
+        let projectLinkButton = new Gtk.LinkButton({
+            label: _("Webpage/Github"),
+            uri: projectUrl,
+            expand: false
+        });
+        menuInfoBox.add(menuLabel);
+        menuInfoBox.add(versionLabel);
+        menuInfoBox.add(projectDescriptionLabel);
+        menuInfoBox.add(helpLabel);
+        menuInfoBox.add(projectLinkButton);
+
+        let authorLabel = new Gtk.Label({
+            label: _("Notification Area made by fmoreira"),
+            justify: Gtk.Justification.CENTER,
+            expand: true
+        });
+
+        // Create the GNU software box
+        let gnuSofwareLabel = new Gtk.Label({
+            label: '<span size="small">This program comes with ABSOLUTELY NO WARRANTY.\n' +
+                'See the <a href="http://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License version 3</a> for details.</span>',
+            use_markup: true,
+            justify: Gtk.Justification.CENTER,
+            expand: true
+        });
+        let gnuSofwareLabelBox = new Gtk.VBox({});
+        gnuSofwareLabelBox.pack_end(gnuSofwareLabel, false, false, 0);
+
+        this.add(menuImageBox);
+        this.add(menuInfoBox);
+        this.add(authorLabel);
+        this.add(gnuSofwareLabelBox);
     }
-})
+});
+
 
 
 function buildPrefsWidget() {

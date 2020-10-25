@@ -1,6 +1,6 @@
 {
   "name": "Notification Area",
-  "description": "Make a notification in the right like windows 10",
+  "description": "The notification area is located at the right end of \nthe screen that you can show using panel button.\nIt provides notifications about things like incoming email,\nupdates, and network connectivity.",
   "gettext-domain": "notification-area",
   "shell-version": [
     "3.26",
@@ -10,7 +10,7 @@
     "3.32",
     "3.36"
   ],
-  "url": "https://github.com/fer-moreira/notificationarea",
+  "url": "https://github.com/fer-moreira/notification-area",
   "uuid": "notification-area@fmoreira",
-  "version": 1
+  "version": 1.0
 }
