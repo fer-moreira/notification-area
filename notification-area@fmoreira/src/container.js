@@ -2,12 +2,11 @@ const St = imports.gi.St;
 const Main = imports.ui.main;
 const Clutter = imports.gi.Clutter;
 const GObject = imports.gi.GObject;
+const Shell = imports.gi.Shell;
+
 const Me = imports.misc.extensionUtils.getCurrentExtension();
-
-const settings = Me.imports.convenience.settings;
-
-
 const Widgets = Me.imports.src.widget;
+const Convenience = Me.imports.convenience;
 
 var NotificationArea = GObject.registerClass({
     Signals: {
@@ -25,33 +24,31 @@ var NotificationArea = GObject.registerClass({
         this.mHeight      = monitor.height;
         this.mWidth       = monitor.width;
         this.hOffset      = Main.panel.height;
-        this.wSize        = settings.get_int("notification-area-width");
-        this.hideDuration = settings.get_int("hide-duration");
-        this.hBoxSize     = settings.get_int("notification-box-height");
+        this._settings = Convenience.getSettings();
+        this.wSize        = this._settings.get_int("notification-area-width");
+        this.hideDuration = this._settings.get_int("hide-duration");
+        this.hBoxSize     = this._settings.get_int("notification-box-height");
         this.isOpen = false;
 
         this._initArea ();
-
         this._bindSettingsChange();
 
-        Main.messageTray.connect("source-added" , (t,s) => {
+        Main.messageTray.connect("source-added" , (t,s) => { this._refreshPseudoClass(t); });
+        Main.messageTray.connect("source-removed" , (t,s) => { 
             this._refreshPseudoClass(t);
-        });
-
-        Main.messageTray.connect("source-removed" , (t,s) => {
-            this._refreshPseudoClass(t);
+            t.getSources().length <= 0 && this._hideNotificationArea();
+            this.isOpen = false;
         });
 
         // CREATE A CONNECTION WHEN DISABLE WILL DESTROY THIS OBJECT
-        this.connect("destroy", () => {
-            this._onDestroy();
-        });
+        this.connect("destroy", () => { this._onDestroy(); });
     }
 
     _initArea  () {
         // CHILDS
         this._widget = new Widgets.NotificationsWidget(this.wSize, this.hBoxSize);
         
+
         // INIT BIN NOTIFICATION AREA
         super._init({
             child: this._widget,
@@ -60,7 +57,7 @@ var NotificationArea = GObject.registerClass({
             can_focus : true,
             track_hover : true,
             height: this.mHeight - this.hOffset,
-            width : this.wSize,
+            width : this.wSize
         });
 
         //SET DEFAULT POSITION TO THE RIGHT
@@ -79,8 +76,21 @@ var NotificationArea = GObject.registerClass({
         //     'changed::multi-monitor',
         //     this._toggle.bind(this)
 
-        settings.connect("changed::notification-area-width", () => {
-            log("mudou o width porra");
+        this._settings.connect("changed::notification-area-width", (sett,key) => {
+            this.wSize = sett.get_int(key.toString());
+            this.set_width(this.wSize);
+            this._widget.set_width(this.wSize);
+
+            this.isOpen ? this._showNotificationArea() : this._hideNotificationArea();
+
+        });
+
+        this._settings.connect("changed::hide-duration", (sett,key) => {
+            this.hideDuration = sett.get_int(key.toString());
+        });
+
+        this._settings.connect("changed::notification-box-height", (sett,key) => {
+            this.hBoxSize = sett.get_int(key.toString());
         });
     }
 
@@ -95,7 +105,12 @@ var NotificationArea = GObject.registerClass({
 
     // SIMPLE TOGGLE FUNCTION TO SHOW AND HIDE NOTIFICATION BIN
     _toggleNotificationArea () {
-        this.isOpen = !this.isOpen;
+        if (Main.messageTray.getSources().length <= 0) {
+            this.isOpen = false;
+        } else {
+            this.isOpen = !this.isOpen;
+        }
+        
         (this.isOpen) ? this._showNotificationArea() : this._hideNotificationArea();
     }
 

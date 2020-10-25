@@ -1,4 +1,4 @@
-const St = imports.gi.St;
+const { St, Gio } = imports.gi;
 const Main = imports.ui.main;
 const Clutter = imports.gi.Clutter;
 const GObject = imports.gi.GObject;
@@ -26,7 +26,6 @@ var NotificationBox = GObject.registerClass({
                 layout_manager: layout
             });
 
-            
             widget.add_actor(this._iconContainer());
             widget.add_actor(this._descriptionContainer());
             widget.add_actor(this._closeContainer());
@@ -42,7 +41,7 @@ var NotificationBox = GObject.registerClass({
             });
 
             this.connect("button-press-event", () => {
-                this.payload.hasApp && this.payload.app.object.activate();
+                this.payload.hasApp ? this.payload.app.object.activate() : this.payload.origin.destroy();
             });
         }
 
@@ -83,11 +82,13 @@ var NotificationBox = GObject.registerClass({
             let default_color = new Clutter.Color({red:255, green: 255, blue: 255,alpha: 255});
 
             let _desc = new Clutter.Text({
-                text: this.payload.content.description,
+                text: this.payload.content.description.replace("\n"," "),
                 line_wrap: true,
                 color: default_color,
-                use_markup: this.payload.content.isMarkup
+                use_markup: this.payload.content.isMarkup,
+                ellipsize: 3
             });
+
 
             widget.add_actor(new St.Label({
                 style_class: "notification_box__label--title",
@@ -110,15 +111,44 @@ var NotificationBox = GObject.registerClass({
         }
 
         _closeContainer () {
+            let layout = new Clutter.BinLayout({
+                x_align: Clutter.BinAlignment.CENTER,
+                y_align: Clutter.BinAlignment.START
+            });
+
+            let widget = new St.Widget({
+                name: "notification_box__widget",
+                layout_manager: layout
+            });
+
+
+            let _icon = new St.Icon({
+                style_class: "notification-button--icon",
+                gicon: Gio.icon_new_for_string(`${Me.path}/icons/close-symbolic.svg`)
+            });
+
+            let _button = new St.Button({style_class : "notification-button"});
+            
+            
+            _button.add_actor(_icon);
+            
+            _button.connect("clicked", () => {
+                this.payload.origin.destroy();
+                // this.destroy();
+            });
+
+            
+            widget.add_actor(_button);
             let container = new St.Bin({
                 style_class : "notification-buttons-container",
-                can_focus : false,
-                track_hover : false,
-                reactive: false,
+                child: widget,
+                reactive: true,
+                can_focus : true,
+                track_hover : true,
                 height : this.boxHeight,
                 width: this._value_percentage(this.boxWidth, 10)
             });
-
+            
             return container;
         }
 
@@ -165,15 +195,20 @@ class NotificationsWidget extends St.Widget {
     _setListeners () {
         Main.messageTray.connect('source-added', (t, source) => {
             source.connect("notification-added", (postSource) => {
+
                 try {
+                    let _nlength = postSource.notifications.length-1;
+                    let _source = postSource.notifications[_nlength];
+
                     let payload = {
+                        origin: source,
                         pid: source.pid,
                         icon: source.createIcon(source.SOURCE_ICON_SIZE),
-                        datetime: postSource.notifications[0].datetime.format_iso8601(),
                         content: {
-                            title: postSource.notifications[0].title,
-                            description: postSource.notifications[0].bannerBodyText,
-                            isMarkup: postSource.notifications[0].bannerBodyMarkup,
+                            title:       _source.title,
+                            description: _source.bannerBodyText,
+                            isMarkup:    _source.bannerBodyMarkup,
+                            datetime:    _source.datetime.format_iso8601(),
                         },
                         hasApp: (source.app != null) ? true : false
                     }
@@ -184,19 +219,27 @@ class NotificationsWidget extends St.Widget {
                             object: source.app
                         }
                     }
+                    if (this.notificationsMap.has(source)) {
+                        this.remove_actor(this.notificationsMap.get(source));
+                        this.notificationsMap.delete(source);
+                    }
 
                     let box = new NotificationBox(this.boxWidth, this.boxHeight, payload);
                     this.notificationsMap.set(source, box);
                     this.add_actor(box);
+
                 } catch (error) {
-                    log("cannot able to add box to notification area, reason: "+error);
+                    log("Error adding notification box to area, \nreason: "+error);
                 }
             });
         });
 
         Main.messageTray.connect('source-removed', (t, source) => {
             try {
-                this.notificationsMap.has(source) && this.remove_actor(this.notificationsMap.get(source));
+                if (this.notificationsMap.has(source)) {
+                    this.remove_actor(this.notificationsMap.get(source));
+                    this.notificationsMap.delete(source);
+                }
             } catch (error) {
                 log("Error removing the notification from widget: " + error);                
             }

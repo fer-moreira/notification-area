@@ -1,111 +1,194 @@
 const Gio = imports.gi.Gio;
+const Gtk = imports.gi.Gtk;
 const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
-const Gtk = imports.gi.Gtk;
-const Gdk = imports.gi.Gdk;
-
-const Me = imports.misc.extensionUtils.getCurrentExtension()
+const GdkPixbuf = imports.gi.GdkPixbuf;
+const Gettext = imports.gettext.domain("notification-area");
+const _ = Gettext.gettext;
 const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const Convenience = Me.imports.convenience;
+const Lang = imports.lang;
 
-
-
-var SettingsPrefsWidget = class SettingsPrefsWidget {
-    constructor () {
-        this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.notification-area');
-
-        this._builder = new Gtk.Builder();
-        // this._builder.set_translation_domain(Me.metadata['gettext-domain']);
-        this._builder.add_from_file(Me.path + '/settings.ui');
-
-        this.widget = new Gtk.ScrolledWindow({ hscrollbar_policy: Gtk.PolicyType.NEVER });
-        this._notebook = this._builder.get_object('settings_notebook');
-        this.widget.add(this._notebook);
-
-        // Set a reasonable initial window height
-        this.widget.connect('realize', () => {
-            let window = this.widget.get_toplevel();
-            let [default_width, default_height] = window.get_default_size();
-            window.resize(default_width, 450);
-        });
-
-        this._notification_area_width_timeout   = 0;
-        this._hide_duration_timeout             = 0;
-        this._notification_box_height_timeout   = 0;
-
-        this._bindSettings();
-        this._builder.connect_signals_full(this._connector.bind(this));
-    }
-
-    _connector(builder, object, signal, handler) {
-        const SignalHandler = {
-
-            // SCALE CHANGES
-            width_scale_value_changed_cb (scale) {
-                log(scale);
-
-                if (this._notification_area_width_timeout > 0)
-                    GLib.source_remove(this._notification_area_width_timeout);
-
-                this._notification_area_width_timeout = GLib.timeout_add(
-                    GLib.PRIORITY_DEFAULT, SCALE_UPDATE_TIMEOUT, () => {
-                    this._settings.set_int('notification-area-width', scale.get_value());
-                    this._notification_area_width_timeout = 0;
-                    return GLib.SOURCE_REMOVE;
-                });
-            },
-            duration_scale_value_changed_cb (scale) {
-                if (this._hide_duration_timeout > 0)
-                    GLib.source_remove(this._hide_duration_timeout);
-
-                this._hide_duration_timeout = GLib.timeout_add(
-                    GLib.PRIORITY_DEFAULT, SCALE_UPDATE_TIMEOUT, () => {
-                    this._settings.set_int('hide-duration', scale.get_value());
-                    this._hide_duration_timeout = 0;
-                    return GLib.SOURCE_REMOVE;
-                });
-            },
-            box_height_scale_value_changed_cb (scale) {
-
-                if (this._notification_box_height_timeout > 0)
-                    GLib.source_remove(this._notification_box_height_timeout);
-
-                this._notification_box_height_timeout = GLib.timeout_add(
-                    GLib.PRIORITY_DEFAULT, SCALE_UPDATE_TIMEOUT, () => {
-                    this._settings.set_int('notification-box-height', scale.get_value());
-                    this._notification_box_height_timeout = 0;
-                    return GLib.SOURCE_REMOVE;
-                });
-            },
-
-            // FORMAT
-            width_scale_value_format (scale, value) {
-                return value + ' px';
-            },
-            duration_scale_value_format (scale, value) {
-                return value + ' ms';
-            },
-            box_height_scale_value_format (scale, value) {
-                return value + ' px';
-            },
-        };
-
-        object.connect(signal, SignalHandler[handler].bind(this));
-    }
-
-    _bindSettings () {
-        this._builder.get_object('width_scale').set_value(this._settings.get_int('notification-area-width'));
-        this._builder.get_object('duration_scale').set_value(this._settings.get_int('hide-duration'));
-        this._builder.get_object('box_height_scale').set_value(this._settings.get_int('notification-box-height'));
-    }
-}
+const Extension = imports.misc.extensionUtils.getCurrentExtension();
 
 function init() {
-    ExtensionUtils.initTranslations();
+    // Convenience.initTranslations("notification-area");
 }
 
-function buildPrefsWidget () {
-  let settings = new SettingsPrefsWidget();
-  let widget = settings.widget;
-  widget.show_all();
-  return widget;
+const Page = new GObject.Class({
+    Name: "Page",
+    GTypeName: "Page",
+    Extends: Gtk.Box,
+
+    _init: function (title) {
+        this.parent({
+            orientation: Gtk.Orientation.VERTICAL,
+            margin: 24,
+            spacing: 20,
+            homogeneous: false
+        });
+        this.title = new Gtk.Label({
+            label: "<b>" + title + "</b>",
+            use_markup: true,
+            xalign: 0
+        });
+    },
+
+    _scaleHandlerBox: function (data) {
+        let _container = new Gtk.Box({
+            baseline_position: Gtk.BaselinePosition.CENTER,
+            homogeneous: false,
+            spacing: 0,
+            orientation: Gtk.Orientation.HORIZONTAL,
+        });
+
+        let label = new Gtk.Label({
+            label: data.title,
+            use_markup: false,
+            xalign: 0
+        });
+
+        let scale = new Gtk.Scale({
+            round_digits: 1,
+            digits: 0,
+            value_pos: Gtk.PositionType.RIGHT,
+            show_fill_level: true,
+            can_focus: true,
+            visible: true,
+            name: data.name,
+            adjustment: new Gtk.Adjustment({
+                lower: data.lower,
+                upper: data.upper,
+                step_increment: 1,
+                page_increment: 1,
+                page_size: 0
+            }),
+            hexpand: true
+        });
+
+        scale.connect("format-value", (scale, value) => {
+            return value.toString() + " " + data.format_txt;
+        });
+
+        scale.add_mark(data.default, Gtk.PositionType.BOTTOM, data.default.toString());
+        scale.set_value(this.settings.get_int(data.key_name));
+        scale.connect("value-changed", Lang.bind(this, function () {
+            this.settings.set_int(data.key_name, scale.get_value());
+        }));
+
+        _container.add(label);
+        _container.add(scale);
+
+        return _container;
+    }
+});
+
+const PrefsWidget = new GObject.Class({
+    Name: "Prefs.Widget",
+    GTypeName: "PrefsWidget",
+    Extends: Gtk.Box,
+
+    _init: function () {
+        this.parent({
+            orientation: Gtk.Orientation.VERTICAL,
+            spacing: 5,
+            border_width: 5
+        });
+        this.settings = Convenience.getSettings();
+
+        let notebook = new Gtk.Notebook({
+            margin_left: 6,
+            margin_right: 6,
+            tab_pos: Gtk.PositionType.LEFT
+        });
+
+        _settingsPage = new SettingsPage(this.settings);
+        notebook.append_page(_settingsPage, _settingsPage.title);
+
+        _prototypePage = new PrototypePage(this.settings);
+        notebook.append_page(_prototypePage, _prototypePage.title);
+
+        _aboutPage = new AboutPage(this.settings);
+        notebook.append_page(_aboutPage, _aboutPage.title);
+
+        this.add(notebook);
+    }
+});
+
+var SettingsPage = new Lang.Class({
+    Name: "SettingsPage",
+    Extends: Page,
+
+    _init: function (settings) {
+        this.parent(_("Settings"));
+        this.settings = settings;
+
+        let _main_box = new Gtk.Box({
+            baseline_position: Gtk.BaselinePosition.TOP,
+            homogeneous: false,
+            spacing: 0,
+            orientation: Gtk.Orientation.VERTICAL,
+            expand: true
+        });
+
+        _main_box.add(this._scaleHandlerBox({
+            title: "Area Width:", 
+            name: "notification_area_width",
+            lower: 300,
+            upper: 900,
+            default: 400,
+            format_txt: "px",
+            key_name: "notification-area-width"
+        }));
+
+        _main_box.add(this._scaleHandlerBox({
+            title: "Hide Duration:", 
+            name: "hide_duration",
+            lower: 50,
+            upper: 600,
+            default: 200,
+            format_txt: "ms",
+            key_name: "hide-duration"
+        }));
+
+        _main_box.add(this._scaleHandlerBox({
+            title: "Banner Height:", 
+            name: "notification_box_height",
+            lower: 50,
+            upper: 300,
+            default: 100,
+            format_txt: "px",
+            key_name: "notification-box-height"
+        }));
+
+        this.add(_main_box);
+    }
+});
+
+var PrototypePage = new Lang.Class({
+    Name: "PrototypePage",
+    Extends: Page,
+
+    _init: function (settings) {
+        this.parent(_("Prototypes"));
+        this.settings = settings;
+    }
+})
+
+var AboutPage = new Lang.Class({
+    Name: "AboutPage",
+    Extends: Page,
+
+    _init: function (settings) {
+        this.parent(_("About"));
+        this.settings = settings;
+    }
+})
+
+
+function buildPrefsWidget() {
+    let widget = new PrefsWidget();
+    widget.show_all();
+    return widget;
 }

@@ -1,6 +1,6 @@
 /* Add your custom extension styling here */
 .notification-container {
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 .notification-container:has_notif {
@@ -8,7 +8,7 @@
 }
 
 .notification-container:empty_notif {
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 .notification-indicator-box .notes-icon-indicator {
@@ -29,15 +29,15 @@
   background-color: rgba(0, 0, 0, 1);
   margin: 4px 10px;
   border-radius: 0px;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.514);
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
 }
 
 .notification-box:hover {
-  background-color: rgba(0, 0, 0, 0.938);
+  background-color: rgba(0, 0, 0, 0.95);
 }
 
-.notification-box .notification-box__widget {
-
+.notification-box__widget {
+  background-color: transparent;
 }
 
 .notification_box__content  {
@@ -50,7 +50,7 @@
 
 .notification_box__label--title  {
   margin: 10px 0px;
-  font-size: 19px;
+  font-size: 17px;
   color: white;
   font-weight: 600;
 }
@@ -61,3 +61,14 @@
   overflow-wrap: break-word;
 }
 
+.notification-buttons-container {
+  background-color: transparent;
+}
+
+.notification-button--icon {
+  color: white;
+  margin-top: 5px;
+  font-size: 15px;
+  height: 20px;
+  width: 13px;
+}
