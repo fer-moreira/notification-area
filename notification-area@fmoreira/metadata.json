@@ -1,0 +1,8 @@
+{
+  "name": "Notification Area",
+  "description": "Make a notification area like windows 10",
+  "uuid": "notification-area@fmoreira",
+  "shell-version": [
+    "3.38"
+  ]
+}
